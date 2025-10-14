@@ -1,0 +1,17 @@
+--liquibase formatted sql
+--changeset vyas:003-create-employee-table
+--comment: Create EMPLOYEE table with foreign key to DEPARTMENT table
+
+CREATE TABLE EMPLOYEE (
+    EMP_ID       NUMBER(10,0) PRIMARY KEY,
+    FIRST_NAME   VARCHAR(50),
+    LAST_NAME    VARCHAR(50),
+    EMAIL        VARCHAR(100) UNIQUE,
+    DEPT_ID      NUMBER(10,0) NOT NULL,
+    SALARY       NUMBER(12,2),
+    HIRE_DATE    TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT FK_EMP_DEPT FOREIGN KEY (DEPT_ID)
+        REFERENCES DEPARTMENT(DEPT_ID)
+);
+
+--rollback DROP TABLE IF EXISTS EMPLOYEE;
