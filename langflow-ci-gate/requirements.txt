@@ -1,5 +1,5 @@
-langflow[all]==1.0.XX
-snowflake-connector-python
-requests
-pytest
+langflow[all]==1.6.4
+snowflake-connector-python==3.17.1
+requests==2.32.4
+pytest==8.4.0
 
