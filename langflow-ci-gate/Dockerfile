@@ -12,8 +12,7 @@ WORKDIR /app
 COPY --from=liquibase /opt/liquibase /opt/liquibase
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY components/ /app/components/
-COPY flows/ /app/flows/
+COPY ./app
 EXPOSE 7860
-CMD ["langflow","run","--host","0.0.0.0","--port","7860","--components-path","/app/components","--load-flow","/app/flows/liquibase_ci_gate.json"]
+CMD ["bash","lc","langflow run --host 0.0.0.0--port 7860"]
 
