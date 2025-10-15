@@ -1,4 +1,4 @@
-langflow[all]==1.0.XX
+langflow==1.6.4
 snowflake-connector-python
 requests
 pytest
