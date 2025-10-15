@@ -1,0 +1,248 @@
+{
+  "name": "Snowflake Deployment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-snowflake-deploy",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1232,
+        -352
+      ],
+      "id": "93058cb9-2b08-46ed-bc2e-2501dee5d487",
+      "name": "Webhook",
+      "webhookId": "f97dec71-9602-4060-a85a-3ba6ebaeef1c"
+    },
+    {
+      "parameters": {
+        "fromEmail": "stv.aihackathon@gmail.com",
+        "toEmail": "tinazhao0611@gmail.com, advithiyasirikolahalam@my.unt.edu, vpavoori@dtcc.com",
+        "subject": "Deployment Agent Notification",
+        "html": "=📋 GitHub Change Detected!\n\nRepository: {{ $(\"Process GitHub Data\").first().json.repository_name }}\nDeployment: {{ $(\"Process GitHub Data\").first().json.requires_deployment }}\nTime: {{ new Date().toLocaleString() }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        -352
+      ],
+      "id": "9e0b315b-2fb8-4b6a-afed-3a1f69f07f53",
+      "name": "Send email",
+      "webhookId": "87391c5e-4b68-422d-8e14-1af8b185dd93",
+      "credentials": {
+        "smtp": {
+          "id": "1s7xJ6tgtXCLEVCL",
+          "name": "SMTP account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.sql_content }}"
+      },
+      "type": "n8n-nodes-base.snowflake",
+      "typeVersion": 1,
+      "position": [
+        16,
+        -352
+      ],
+      "id": "481a2060-9eb4-4d66-b70f-3ec887fb02c2",
+      "name": "Snowflake",
+      "credentials": {
+        "snowflake": {
+          "id": "0jswmW4pwcnMzyTl",
+          "name": "Snowflake account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/tina-zhao0611/{{ $(\"Process GitHub Data\").first().json.repository_name }}/contents/{{ $('Process GitHub Data').first().json.snowflake_files[0] }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Accept\": \"application/vnd.github.v3+json\",\n  \"User-Agent\": \"n8n-snowflake-automation\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -432,
+        -352
+      ],
+      "id": "415ea1d3-8fd2-4388-9599-097a78a42444",
+      "name": "Get SQL Files from GitHub"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract GitHub webhook data from Lambda\nconst webhookData = $json;\n\nconst processedData = {\n    repository_name: webhookData.repository_name || 'unknown',\n    branch: webhookData.branch || 'main',\n    commit_id: webhookData.commit_id || '',\n    commit_message: webhookData.commit_message || '',\n    pusher: webhookData.pusher || 'unknown',\n    snowflake_files: webhookData.snowflake_files || [],\n    requires_deployment: webhookData.requires_deployment || false,\n    total_files: (webhookData.snowflake_files || []).length,\n    target_database: 'AIX_SHARED_DB',\n    target_schema: 'PUBLIC'\n};\n\nconsole.log('GitHub data processed:', processedData);\nreturn [{ json: processedData }];\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        -352
+      ],
+      "id": "af1fb292-a7be-4fae-a4f2-0d7ce59e9df3",
+      "name": "Process GitHub Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rule-based SQL safety analysis (no AI needed)\nconst githubData = $json;\nconst sqlFiles = githubData.snowflake_files || [];\n\nlet analysis = {\n    safety_level: 'SAFE',\n    risk_score: 15,\n    change_type: 'SAFE_CREATION',\n    deployment_approved: true,\n    recommendations: [],\n    warnings: []\n};\n\n// Check each SQL file for dangerous patterns\nfor (const file of sqlFiles) {\n    const fileName = file.toLowerCase();\n    \n    if (fileName.includes('drop') || fileName.includes('delete') || fileName.includes('truncate')) {\n        analysis.safety_level = 'DANGEROUS';\n        analysis.risk_score = 85;\n        analysis.deployment_approved = false;\n        analysis.change_type = 'DESTRUCTIVE_OPERATION';\n        analysis.warnings.push(`Dangerous operation in file: ${file}`);\n        \n    } else if (fileName.includes('alter') || fileName.includes('modify')) {\n        analysis.safety_level = 'CAUTION';\n        analysis.risk_score = 45;\n        analysis.change_type = 'SCHEMA_MODIFICATION';\n        analysis.warnings.push(`Schema change in file: ${file}`);\n        \n    } else {\n        analysis.recommendations.push(`Safe creation detected: ${file}`);\n    }\n}\n\n// Add context\nanalysis.deployment_context = {\n    database: githubData.target_database,\n    schema: githubData.target_schema,\n    requested_by: githubData.pusher,\n    commit_id: githubData.commit_id,\n    repository: githubData.repository_name\n};\n\nconsole.log('Safety analysis:', analysis);\nreturn [{ json: analysis }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        -24
+      ],
+      "id": "23b80842-75d5-407f-b2ee-85f9ec51651d",
+      "name": "Analyze SQL Safety"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decode GitHub file content\nconst githubResponse = $json;\nconst previousData = $('Analyze SQL Safety').first().json;\n\n// GitHub returns base64 encoded content\nconst sqlContent = Buffer.from(githubResponse.content, 'base64').toString('utf-8');\n\n// Prepare for Snowflake deployment\nconst deploymentData = {\n    ...previousData,\n    sql_content: sqlContent,\n    file_name: githubResponse.name,\n    file_path: githubResponse.path,\n    ready_for_deployment: true\n};\n\nconsole.log('SQL content retrieved:', {\n    file_name: deploymentData.file_name,\n    content_length: sqlContent.length\n});\n\nreturn [{ json: deploymentData }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        -352
+      ],
+      "id": "4ebee28d-6c28-46e3-b7b5-1e6eda0de24b",
+      "name": "Get file to deploy"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "You are a senior Snowflake database deployment specialist with expertise in schema analysis and safe deployments.\n\nCORE RESPONSIBILITIES:\n- Analyze Snowflake SQL schema changes for safety and compliance\n- Generate Liquibase changelogs from SQL analysis\n- Assess deployment risk levels and provide recommendations\n- Always respond with structured JSON format\n\nANALYSIS FRAMEWORK:\nWhen analyzing schema changes, evaluate:\n\n1. SAFETY LEVELS:\n   - SAFE (0-30): CREATE TABLE, CREATE VIEW, ADD COLUMN, CREATE INDEX\n   - CAUTION (31-60): ALTER TABLE, data type changes, constraints\n   - DANGEROUS (61-100): DROP TABLE, DROP COLUMN, TRUNCATE, DELETE\n\n2. TARGET ENVIRONMENT:\n   - Database: AIX_SHARED_DB\n   - Schema: PUBLIC\n   - Environment: QA (non-production)\n\n3. DEPLOYMENT RULES:\n   - Auto-approve SAFE changes (risk ≤ 30)\n   - Review CAUTION changes (risk 31-60)\n   - Block DANGEROUS changes (risk > 60)\n\nREQUIRED OUTPUT FORMAT:\nAlways respond with this exact JSON structure:\n\n{\n  \"safety_level\": \"SAFE|CAUTION|DANGEROUS\",\n  \"risk_score\": 25,\n  \"change_type\": \"CREATE_TABLE|ALTER_TABLE|DROP_TABLE|etc\",\n  \"liquibase_changelog\": \"databaseChangeLog:\\n  - changeSet:\\n      id: auto-001\\n      author: automation\\n      changes:\\n        - sql:\\n            sql: \\\"CREATE TABLE example...\\\"\\n      rollback:\\n        - sql: \\\"DROP TABLE example\\\"\",\n  \"recommendations\": [\"Add primary key constraint\", \"Consider indexing\"],\n  \"warnings\": [\"No warnings for this change\"],\n  \"confidence_score\": 85,\n  \"deployment_approved\": true\n}\n\nBe thorough, prioritize data safety, and always include a complete Liquibase changelog in YAML format.\n\n",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -784,
+        -352
+      ],
+      "id": "38d59083-247d-4b10-ad40-4063a48fafbd",
+      "name": "Change Analyze agent"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "repository_name": "Snowflake_scripts",
+          "repository_full_name": "tina-zhao0611/Snowflake_scripts",
+          "branch": "main",
+          "commit_id": "2603c35f8c2215c7ff2b18ffe8a3b9dbd0799ee6",
+          "commit_message": "create view",
+          "pusher": "tina-zhao0611",
+          "timestamp": "2025-10-15T06:43:54.433952",
+          "snowflake_files": [
+            "create_orders_view.sql"
+          ],
+          "all_changed_files": [
+            "create_orders_view.sql"
+          ],
+          "total_files": 1,
+          "total_sql_files": 1,
+          "requires_deployment": true,
+          "target_database": "AIX_SHARED_DB",
+          "target_schema": "PUBLIC"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process GitHub Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process GitHub Data": {
+      "main": [
+        [
+          {
+            "node": "Change Analyze agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get SQL Files from GitHub": {
+      "main": [
+        [
+          {
+            "node": "Get file to deploy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze SQL Safety": {
+      "main": [
+        []
+      ]
+    },
+    "Get file to deploy": {
+      "main": [
+        [
+          {
+            "node": "Snowflake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Snowflake": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Change Analyze agent": {
+      "main": [
+        [
+          {
+            "node": "Get SQL Files from GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "3afa5291-446f-4f42-bb9c-096f82e1d29f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9991301b964d2ddcc6107d8269a70bde264f8b1a32e5c413baebb2de19a70df0"
+  },
+  "id": "cJNw9bcWJOI6qQeJ",
+  "tags": []
+}
