@@ -1,13 +1,12 @@
 # components/notifier.py
 from langflow.custom import CustomComponent
-import requests, os, json
+import requests, json
 
 class Notifier(CustomComponent):
-    display_name = "Notifier"
-    description = "Sends Slack/Email notification with results."
+    display_name = "Notifier (Slack)"
+    description = "Sends a Slack message with results."
 
-    def build(self, channel_webhook: str, title: str, summary: dict):
+    def build(self, slack_webhook: str, title: str, summary: dict):
         text = f"*{title}*\n```{json.dumps(summary, indent=2)[:2800]}```"
-        r = requests.post(channel_webhook, json={"text": text})
+        r = requests.post(slack_webhook, json={"text": text})
         return {"ok": r.status_code == 200}
-
