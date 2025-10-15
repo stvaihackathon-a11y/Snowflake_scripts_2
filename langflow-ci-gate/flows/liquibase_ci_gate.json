@@ -1,0 +1,130 @@
+{
+  "name": "Liquibase CI Gate to Snowflake",
+  "description": "Trigger -> Lint -> Dry-run -> Connectivity -> Dispatch -> Poll -> Notify",
+  "nodes": [
+    {
+      "id": "input",
+      "type": "input",
+      "data": {
+        "label": "Deploy Inputs",
+        "fields": {
+          "repo_root": ".",
+          "ddl_path": "liquibase_scripts/ddl",
+          "changelog_file": "liquibase_scripts/changelog-root.xml",
+          "env": "dev",
+          "ref": "main",
+          "context_tags": ""
+        }
+      },
+      "position": {"x": 50, "y": 60}
+    },
+    {
+      "id": "lint",
+      "type": "custom",
+      "data": {
+        "class_name": "LiquibaseConventionsChecker",
+        "module": "liquibase_conventions_checker",
+        "inputs_map": {
+          "repo_root": {"node": "input", "field": "repo_root"},
+          "ddl_path": {"node": "input", "field": "ddl_path"}
+        }
+      },
+      "position": {"x": 320, "y": 40}
+    },
+    {
+      "id": "dryrun",
+      "type": "custom",
+      "data": {
+        "class_name": "LiquibaseValidator",
+        "module": "liquibase_validator",
+        "inputs_map": {
+          "changelog_file": {"node": "input", "field": "changelog_file"}
+        }
+      },
+      "position": {"x": 580, "y": 40}
+    },
+    {
+      "id": "snfcheck",
+      "type": "custom",
+      "data": {
+        "class_name": "SnowflakeConnectivityCheck",
+        "module": "snowflake_connectivity_check",
+        "inputs_static": {
+          "account": "${SNOWFLAKE_ACCOUNT}",
+          "user": "${SNOWFLAKE_USER}",
+          "password": "${SNOWFLAKE_PASSWORD}",
+          "warehouse": "${SNOWFLAKE_WAREHOUSE}",
+          "database": "${SNOWFLAKE_DATABASE}",
+          "schema": "${SNOWFLAKE_SCHEMA}",
+          "role": "${SNOWFLAKE_ROLE}"
+        }
+      },
+      "position": {"x": 840, "y": 40}
+    },
+    {
+      "id": "dispatch",
+      "type": "custom",
+      "data": {
+        "class_name": "CICDDispatcher",
+        "module": "cicd_dispatcher",
+        "inputs_static": {
+          "repo_slug": "stvaihackathon-a11y/Snowflake_scripts_2",
+          "workflow_file": "deploy-liquibase.yml",
+          "token": "${GITHUB_TOKEN}"
+        },
+        "inputs_map": {
+          "ref": {"node": "input", "field": "ref"},
+          "env": {"node": "input", "field": "env"},
+          "changelog": {"node": "input", "field": "changelog_file"},
+          "context_tags": {"node": "input", "field": "context_tags"}
+        }
+      },
+      "position": {"x": 1100, "y": 40}
+    },
+    {
+      "id": "poll",
+      "type": "custom",
+      "data": {
+        "class_name": "PipelineStatusPoller",
+        "module": "pipeline_status_poller",
+        "inputs_static": {
+          "repo_slug": "stvaihackathon-a11y/Snowflake_scripts_2",
+          "workflow_file": "deploy-liquibase.yml",
+          "token": "${GITHUB_TOKEN}",
+          "timeout_sec": 240,
+          "poll_every_sec": 6
+        }
+      },
+      "position": {"x": 1360, "y": 40}
+    },
+    {
+      "id": "notify",
+      "type": "custom",
+      "data": {
+        "class_name": "Notifier",
+        "module": "notifier",
+        "inputs_static": {
+          "slack_webhook": "${SLACK_WEBHOOK_URL}",
+          "title": "Liquibase Deploy Result"
+        },
+        "inputs_map": {
+          "summary": {"node": "poll", "field": "output"}
+        }
+      },
+      "position": {"x": 1620, "y": 40}
+    }
+  ],
+  "edges": [
+    {"id": "e1","source": "input","target": "lint"},
+    {"id": "e2","source": "lint","target": "dryrun"},
+    {"id": "e3","source": "dryrun","target": "snfcheck"},
+    {"id": "e4","source": "snfcheck","target": "dispatch"},
+    {"id": "e5","source": "dispatch","target": "poll"},
+    {"id": "e6","source": "poll","target": "notify"}
+  ],
+  "meta": {
+    "env_hints": ["SNOWFLAKE_*", "GITHUB_TOKEN", "SLACK_WEBHOOK_URL"],
+    "notes": "Import this flow, set environment variables in the Langflow container, then run."
+  }
+}
+
